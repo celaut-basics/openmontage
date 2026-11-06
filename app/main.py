@@ -25,6 +25,7 @@ def main():
     llm = LLM()
     producer = Producer()
     producer.work_root.mkdir(parents=True, exist_ok=True)
+    producer.warm()
     upstream = os.environ.get("OPENMONTAGE_UPSTREAM_COMMIT", "unknown")
     chat = Chat(Director(llm, producer, upstream))
     server, port = make_server(chat, port=int(os.environ.get("PORT", "8080")))

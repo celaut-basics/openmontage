@@ -105,6 +105,7 @@ class Producer:
         # chooser(scene, kind, descriptions) -> indexes of the fitting candidates, best first
         # (director.py gives one that asks the LLM); None: shared words decide.
         self.chooser = None
+        self.chooser_down = False
 
     # ---- sources -------------------------------------------------------------------
 
@@ -201,12 +202,15 @@ class Producer:
         """The indexes of the candidates that fit the scene, best first."""
         scored = sorted(((overlap(scene, c), i) for i, c in enumerate(candidates)), reverse=True)
         by_words = [i for score, i in scored if score >= 2]  # at least one word of the query
-        if self.chooser is None:
+        if self.chooser is None or self.chooser_down:
             return by_words
         try:
             fits = self.chooser(scene, kind, [describe(c, 160) for c in candidates])
         except Exception as error:  # noqa: BLE001 (the LLM is optional here)
-            logs.write("  chooser failed (%s): word score\n" % error)
+            # One failure (an LLM that is down or still loading) sends the rest of this
+            # render to the word score, instead of one LLM timeout for each scene.
+            self.chooser_down = True
+            logs.write("  chooser failed (%s): word score for the rest of the render\n" % error)
             return by_words
         fits = [i for i in fits if 0 <= i < len(candidates)]
         logs.write("  chooser: %s of %d\n" % (fits, len(candidates)))
@@ -287,6 +291,7 @@ class Producer:
         timings, t0 = {}, time.monotonic()
         scenes = plan["scenes"]
         self.used = set()
+        self.chooser_down = False
 
         # 1. Voice.
         report(0.02, "Recording the voice-over (Piper, %s)" % Path(self.voice).stem)
@@ -363,6 +368,7 @@ class Producer:
         for name in ("raw", "remotion.mp4"):
             for p in job.glob(name + "*"):
                 p.unlink(missing_ok=True)
+        shutil.rmtree(public, ignore_errors=True)  # the media are in the video now
         return Result(video=video, poster=poster, audio=sound, duration=probe_duration(video),
                       size=video.stat().st_size, timings=timings, sources=sources, fallbacks=fallbacks)
 
@@ -426,7 +432,37 @@ class Producer:
         return {"theme": plan["theme"], "cuts": cuts, "overlays": overlays, "captions": captions,
                 "audio": audio}
 
+    def warm(self):
+        """Read Remotion's Chromium and compositor once, in the background, so that their
+        first start does not wait for a cold disk (a launch must connect in 25 s)."""
+        def read():
+            for root in (self.composer / "node_modules" / ".remotion",
+                         self.composer / "node_modules" / "@remotion"):
+                for path in root.rglob("*"):
+                    try:
+                        if path.is_file() and path.stat().st_size > (1 << 20):
+                            with open(path, "rb") as f:
+                                while f.read(1 << 22):
+                                    pass
+                    except OSError:
+                        pass
+            log.info("Remotion's browser and compositor are in the page cache")
+        import threading
+        threading.Thread(target=read, daemon=True).start()
+
     def remotion(self, job, out, report, check):
+        try:
+            self._remotion(job, out, report, check)
+        except RuntimeError:
+            text = (job / "remotion.log").read_bytes()[-4000:]
+            if b"trying to connect to the browser" not in text:
+                raise
+            log.warning("Chromium did not start in time; one more try")
+            report(0.55, "The browser was slow to start; trying again")
+            shutil.rmtree(job / "bundle", ignore_errors=True)
+            self._remotion(job, out, report, check)
+
+    def _remotion(self, job, out, report, check):
         """Render the Explainer composition from the bundle of the image. The bundle is
         copied into the job, and the media of the job go into its public/ folder, so
         `staticFile()` finds them."""
@@ -435,7 +471,8 @@ class Producer:
         dest = bundle / "public"
         dest.mkdir(exist_ok=True)
         for item in (job / "public").iterdir():
-            shutil.move(str(item), dest / item.name)
+            # Copies, so that a second try still has the media.
+            shutil.copy2(str(item), dest / item.name)
         remotion = self.composer / "node_modules" / ".bin" / "remotion"
         cmd = [str(remotion), "render", str(bundle), "Explainer", str(out),
                "--props=%s" % (job / "props.json"), "--codec=h264", "--crf=22",
