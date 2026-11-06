@@ -20,6 +20,10 @@ open-source agentic video production system”), pinned at commit
 chatui ([docs/celaut/chat.md](https://github.com/celaut-project/chatui/blob/master/docs/celaut/chat.md),
 revision 6, gRPC over h2c).
 
+**Release [v1](https://github.com/celaut-basics/openmontage/releases/tag/v1):** `9321d7.celaut.bee`
+(linux/amd64), service id `9321d7c55be8b65c5b355a5c05e7d619b57506c9e1878190ad2df5bfd6a5ee7c`
+— `nodo import 9321d7.celaut.bee`. Clean-registry import tested on a node.
+
 ## Source code and licence (AGPL-3.0)
 
 OpenMontage is licensed under the **GNU Affero General Public License v3.0**, and so is this
