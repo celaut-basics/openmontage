@@ -87,22 +87,29 @@ COPY service /service
 # takes minutes; npm and git already write them world-readable.)
 RUN chmod -R a+rX /service /opt/piper \
     && find /service -name '__pycache__' -prune -exec rm -rf {} +
+# The paths of the image. nodo does not apply the ENV of an image to the guest, so the
+# entrypoint exports them too.
 ENV OPENMONTAGE_UPSTREAM=/opt/openmontage \
     OPENMONTAGE_REMOTION_BUNDLE=/opt/remotion-bundle \
     OPENMONTAGE_VOICE_MODEL=/opt/piper/en_US-joe-medium.onnx \
-    OPENMONTAGE_WORK_DIR=/work \
     REMOTION_DISABLE_TELEMETRY=1 \
     PYTHONUNBUFFERED=1
 # The entrypoint (service.json init.entry_path). The guest init starts it as PID 1 and as
-# root. As root it writes a DNS resolver (app/resolver.py) and makes the work directory on
-# the disk of the instance, then starts the service as the user om.
+# root. As root it writes a DNS resolver (app/resolver.py), gives `localhost` an address
+# (Remotion's renderer loads the bundle from http://localhost:3000, and the guest has no
+# /etc/hosts) and makes the work directory on the disk of the instance; then it starts
+# the service as the user om.
 RUN printf '%s\n' \
         '#!/bin/sh' \
         'cd /service' \
         '/usr/local/bin/python3 -E -s -m app.resolver || exit 2' \
+        'grep -qs "^127.0.0.1[[:space:]].*localhost" /etc/hosts || printf "127.0.0.1 localhost\n::1 localhost ip6-localhost\n" >> /etc/hosts' \
+        'chmod 0644 /etc/hosts' \
         'mkdir -p /work && chown 10001:10001 /work && chmod 0700 /work' \
+        'export OPENMONTAGE_UPSTREAM=/opt/openmontage OPENMONTAGE_REMOTION_BUNDLE=/opt/remotion-bundle' \
+        'export OPENMONTAGE_VOICE_MODEL=/opt/piper/en_US-joe-medium.onnx OPENMONTAGE_WORK_DIR=/work' \
         'export OPENMONTAGE_UPSTREAM_COMMIT="$(cat /opt/openmontage/UPSTREAM_COMMIT)"' \
-        'export HOME=/work PATH=/usr/local/bin:/usr/bin:/bin' \
+        'export REMOTION_DISABLE_TELEMETRY=1 PYTHONUNBUFFERED=1 HOME=/work PATH=/usr/local/bin:/usr/bin:/bin' \
         'exec setpriv --reuid 10001 --regid 10001 --clear-groups --no-new-privs /usr/local/bin/python3 -m app.main' \
         > /entrypoint.sh \
     && chmod 0755 /entrypoint.sh
