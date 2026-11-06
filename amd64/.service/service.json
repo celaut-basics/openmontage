@@ -1,0 +1,55 @@
+{
+    "tag": "openmontage",
+    "architecture": "linux/amd64",
+    "init": {
+        "entry_path": ["entrypoint.sh"]
+    },
+    "envs": [
+        "OPENMONTAGE_LLM_BASE_URL",
+        "OPENMONTAGE_LLM_MODEL",
+        "OPENMONTAGE_LLM_API_KEY",
+        "OPENMONTAGE_LLM_TIMEOUT_S",
+        "OPENMONTAGE_LLM_TEMPERATURE",
+        "OPENMONTAGE_DNS_SERVERS",
+        "OPENMONTAGE_RENDER_CONCURRENCY",
+        "OPENMONTAGE_RENDER_SCALE",
+        "OPENMONTAGE_VOICE_LENGTH_SCALE",
+        "OPENMONTAGE_SEARCH_BUDGET_S",
+        "PEXELS_API_KEY",
+        "PIXABAY_API_KEY"
+    ],
+    "api": [
+        {
+            "port": 8080,
+            "transport": "tcp",
+            "protocol_stack": [
+                ["http2"],
+                ["grpc"],
+                {
+                    "tags": ["chat"],
+                    "prose": "OpenMontage (calesthio/OpenMontage, AGPL-3.0) as a chat service: describe a short video, get a plan, say 'Render it', get an MP4 (20-40 s, 1280x720) made only from free material: Wikimedia Commons, NASA and Internet Archive footage, a local Piper voice, generated music and Remotion animation, on CPUs. The planner is the OpenAI-compatible LLM of OPENMONTAGE_LLM_BASE_URL (optional). Chat interface of chatui (docs/celaut/chat.md, revision 6, gRPC over h2c); the files come as image (poster), audio (sound track) and file (video/mp4). Source: https://github.com/celaut-basics/openmontage"
+                }
+            ]
+        }
+    ],
+    "network": [
+        {
+            "tags": ["*"],
+            "prose": "Open egress, narrowed inside the service. The service reaches the user's LLM endpoint (OPENMONTAGE_LLM_BASE_URL: any host, so it cannot be a hostname tag fixed at pack time) and the free media archives that OpenMontage's stock sources call: commons.wikimedia.org, upload.wikimedia.org, thumb.wikimedia.org, images-api.nasa.gov, images-assets.nasa.gov, archive.org and its file servers *.archive.org (a different host for each item), plus api.pexels.com, videos.pexels.com, images.pexels.com, pixabay.com and cdn.pixabay.com only when PEXELS_API_KEY or PIXABAY_API_KEY is set. Hostname tags cannot serve this: nodo grants the addresses of a hostname and serves no DNS, so an HTTP client fails at the lookup (docs/NETWORKS.md, Hostname tags). The Python process refuses every name lookup outside that list (app/egress.py); FFmpeg, Piper and Chromium read local files only. nodo configures no resolver in the guest, so the service uses public DNS resolvers on port 53 (OPENMONTAGE_DNS_SERVERS replaces them). The LLM API key (OPENMONTAGE_LLM_API_KEY) goes only to the LLM endpoint."
+        }
+    ],
+    "resources": {
+        "at_init": {
+            "mem_limit": 4294967296,
+            "disk_space": 8000000000,
+            "cpu_period": 100000,
+            "cpu_quota": 300000
+        },
+        "at_most": {
+            "mem_limit": 4294967296,
+            "disk_space": 8000000000,
+            "cpu_period": 100000,
+            "cpu_quota": 300000
+        }
+    }
+}

@@ -1,0 +1,10 @@
+# The Python packages of the image (amd64/.service/Dockerfile). The resolved versions of
+# the last build are in /opt/pip-freeze.txt in the image.
+grpcio==1.85.1
+protobuf==7.36.2
+typing_extensions==4.16.0
+requests==2.32.5
+piper-tts==1.8.0
+# Dependencies of piper-tts, pinned at the versions of the first build.
+onnxruntime==1.31.1
+numpy==2.4.6

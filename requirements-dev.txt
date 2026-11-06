@@ -1,0 +1,7 @@
+# The packages of the image (app/requirements.txt, without Piper), plus the tools of the tests.
+grpcio==1.85.1
+protobuf==7.36.2
+typing_extensions==4.16.0
+requests==2.32.5
+grpcio-tools==1.85.1
+pytest==9.2.0
