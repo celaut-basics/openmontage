@@ -177,21 +177,35 @@ photo | earth and moon | It steadies Earth's axis and drives the tides.
 Free keys (no payment, a sign-up): `PEXELS_API_KEY`, `PIXABAY_API_KEY`, `UNSPLASH_ACCESS_KEY`
 — the first two are supported here.
 
-## Measured
+## End-to-end test (2026-11-06)
 
-See [the e2e section](#end-to-end-test) for the run on the node.
+Node: the Alienware test node (nodo dev `97906c7c`, WSL2 Ubuntu 22.04, Ryzen 12 threads,
+x86_64 + KVM), as a client only (free credit, no on-chain payment). LLM: `qwen2.5:14b-instruct`
+(Q4_K_M) in Ollama on the host's RTX 3090, reached by the guest at `192.168.200.1:11435`
+(a socat forwarder to Ollama's 127.0.0.1:11434). Client: `client/chat_client.py`; harness:
+`scripts/e2e_node.sh`.
 
-## End-to-end test
+| Step | Result |
+|---|---|
+| `nodo pack amd64 --local` | service `9321d7c55be8b65c5b355a5c05e7d619b57506c9e1878190ad2df5bfd6a5ee7c`, 1.9 GiB with blocks; 16–17 min on a quiet host (68 min while another job saturated the disk) |
+| first `nodo execute` on a node | 7 min (427 s) quiet, 24 min under disk load: the node builds the 8 GB instance disk from the blocks; charged `BUILD_MU` 10 M once per node |
+| prompt | “A 30-second video about the Moon: how it formed and why it matters to Earth, calm music” |
+| plan | 9 s (model warm on the GPU), 5 scenes, title “Moon's Origin and Impact”, suggestions Render it / Make it shorter / Use more photos |
+| “Render it” → files | 129 s; render 119 s = voice 16 s + media search/download 12 s + Remotion 83 s (3 vCPUs) |
+| video | 27.7 s, 1280×720 H.264 30 fps + AAC, 2.1 MB; 2 NASA clips (public domain) from Wikimedia Commons + title/text/stat cards, captions, voice, music |
+| files | poster.jpg 14.5 kB, soundtrack.mp3 444 kB, the MP4 2.05 MB — all downloaded with `DownloadFile`, SHA3-256 checked |
+| cost | 11,354,302 MU = 10,000,000 build (first start of the service id on the node) + 1,354,302 maintenance for the life of the instance; a later start on the same node pays only the maintenance (about 0.65–1.4 M MU for one plan + render) |
+| memory | the VM process peaked at 3.5 GB RSS of its 4 GiB (guest page cache included) |
 
-(Filled in by the live-node run.)
+In Docker on the same host (`--cpus 3 --memory 4g`), the same conversation renders in 103–143 s.
 
 ## Size and resources
 
 - Image 1.79 GB: Remotion `node_modules` with its headless Chromium 714 MB, Debian
   libraries (FFmpeg, Chromium deps) ~470 MB, Python packages 232 MB (onnxruntime, numpy,
   grpcio), the voice 61 MB, the Remotion bundle 19 MB.
-- `service.json`: 3 CPUs, 4 GiB RAM, 8 GB disk. A render of a 25 s video peaks below
-  2 GiB; Remotion's CPU time is most of the render.
+- `service.json`: 3 CPUs (a node with `MAX_CPU_SHARE` 0.5 of 6 cores allows 3), 4 GiB RAM,
+  8 GB disk. Remotion's CPU time is most of the render.
 
 ## Limitations
 
@@ -205,7 +219,13 @@ See [the e2e section](#end-to-end-test) for the run on the node.
 - **Voice in English only** (one Piper voice in the image). Captions are timed from word
   lengths, not by forced alignment.
 - **CPU only.** A 25 s video takes about 2 minutes on 3 CPUs; the LLM is wherever the user
-  points it.
+  points it. A cold 14B model can take minutes to load: the service waits up to
+  `OPENMONTAGE_LLM_TIMEOUT_S` (300 s), then plans by rules, and after one failed ranking
+  call ranks the rest of a render by shared words.
+- **The narration is the LLM's**: facts are not checked (in the test, a 14B model wrote that
+  the Moon was “captured by Earth's gravity”). Review the plan before “Render it”.
+- **First start on a node is slow** (the node builds an 8 GB instance disk from 1.9 GiB of
+  blocks: 7–24 min on the test host).
 - **chatui shows the poster and the sound, not the MP4** (`file` parts are not displayed by
   chatui yet); a client that downloads `file` parts gets the video.
 - Wikimedia's file servers can answer HTTP 429 to bursts; the service then tries the next
