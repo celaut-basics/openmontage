@@ -20,9 +20,10 @@ open-source agentic video production system”), pinned at commit
 chatui ([docs/celaut/chat.md](https://github.com/celaut-project/chatui/blob/master/docs/celaut/chat.md),
 revision 6, gRPC over h2c).
 
-**Release [v1](https://github.com/celaut-basics/openmontage/releases/tag/v1):** `9321d7.celaut.bee`
-(linux/amd64), service id `9321d7c55be8b65c5b355a5c05e7d619b57506c9e1878190ad2df5bfd6a5ee7c`
-— `nodo import 9321d7.celaut.bee`. Clean-registry import tested on a node.
+**Release [v2](https://github.com/celaut-basics/openmontage/releases/tag/v2):** `d5dc1e.celaut.bee`
+(linux/amd64), service id `d5dc1e8d18b3269c247d6df8d32c8547720dfbd921b97115b5e24e641b7cc703`
+— `nodo import d5dc1e.celaut.bee`. Packed and tested with nodo `dev` a97148dd (2026-11-08):
+clean-registry import, then a plan and a 20 s render. Release v1 (`9321d7`) also still works on that dev.
 
 ## Source code and licence (AGPL-3.0)
 
