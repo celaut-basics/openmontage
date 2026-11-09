@@ -13,11 +13,22 @@ def read(*parts):
         return f.read()
 
 
+ARCHES = ("amd64", "arm64")
+
+
 def test_pack_root_links_the_app():
-    assert os.path.islink(os.path.join(ROOT, "amd64", "app"))
-    assert os.readlink(os.path.join(ROOT, "amd64", "app")) == "../app"
-    config = json.loads(read("amd64", ".service", "pack_config.json"))
-    assert config["include"] == ["app"]
+    for arch in ARCHES:
+        assert os.path.islink(os.path.join(ROOT, arch, "app"))
+        assert os.readlink(os.path.join(ROOT, arch, "app")) == "../app"
+        config = json.loads(read(arch, ".service", "pack_config.json"))
+        assert config["include"] == ["app"]
+
+
+def test_the_arm64_root_differs_only_in_the_architecture():
+    assert read("arm64", ".service", "Dockerfile") == read("amd64", ".service", "Dockerfile")
+    assert read("arm64", ".service", "pack_config.json") == read("amd64", ".service", "pack_config.json")
+    amd = read("amd64", ".service", "service.json")
+    assert read("arm64", ".service", "service.json") == amd.replace("linux/amd64", "linux/arm64")
 
 
 def test_manifest_declares_the_chat_slot_and_the_envs():
