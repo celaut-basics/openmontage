@@ -36,10 +36,19 @@ ENV REMOTION_DISABLE_TELEMETRY=1 NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUN
 RUN npm ci --no-audit > /tmp/npm-ci.log 2>&1 || (tail -40 /tmp/npm-ci.log; exit 1)
 # chrome-headless-shell into node_modules/.remotion, where `remotion render` looks for it.
 RUN npx --no-install remotion browser ensure > /tmp/browser.log 2>&1 || (tail -20 /tmp/browser.log; exit 1)
-# The bundle (webpack output) of src/index.tsx: a render reads it and needs no webpack.
-# arm64 is packed on x86_64 under qemu-user, where esbuild (Go) crashed 3 times in a row
-# (nodo 66721709 pack, 2026-11-21): no async preemption signals, fewer Go threads.
-RUN GODEBUG=asyncpreemptoff=1 GOMAXPROCS=2 npx --no-install remotion bundle src/index.tsx --out-dir=/opt/remotion-bundle > /tmp/bundle.log 2>&1 \
+
+# ---- the bundle (webpack output) of src/index.tsx: a render reads it and needs no webpack ----
+# It is JavaScript, the same on every arch, so this stage runs on the platform of the build
+# host. When arm64 is packed on x86_64 (qemu-user), esbuild (Go) crashed in the bundle step
+# in 4 of 4 packs (nodo 66721709, 2026-11-21), also with GODEBUG=asyncpreemptoff=1.
+# The node modules, Chromium and node of the image still come from the arm64 stage above,
+# and the smoke test at the end renders with them.
+FROM --platform=$BUILDPLATFORM node:22-bookworm-slim@sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d AS bundle
+COPY --from=upstream /opt/openmontage/remotion-composer /opt/openmontage/remotion-composer
+WORKDIR /opt/openmontage/remotion-composer
+ENV REMOTION_DISABLE_TELEMETRY=1 NPM_CONFIG_UPDATE_NOTIFIER=false NPM_CONFIG_FUND=false
+RUN npm ci --no-audit > /tmp/npm-ci.log 2>&1 || (tail -40 /tmp/npm-ci.log; exit 1)
+RUN npx --no-install remotion bundle src/index.tsx --out-dir=/opt/remotion-bundle > /tmp/bundle.log 2>&1 \
     || (tail -40 /tmp/bundle.log; exit 1)
 
 # ---- the service ----
@@ -82,7 +91,7 @@ ADD --checksum=sha256:3d6d5410b3795cb1950595247ef8f06190719e6fdbfa3a2356d8ec368e
 COPY --from=remotion /usr/local/bin/node /usr/local/bin/node
 COPY --from=upstream /opt/openmontage /opt/openmontage
 COPY --from=remotion /opt/openmontage/remotion-composer/node_modules /opt/openmontage/remotion-composer/node_modules
-COPY --from=remotion /opt/remotion-bundle /opt/remotion-bundle
+COPY --from=bundle /opt/remotion-bundle /opt/remotion-bundle
 # service/ holds app/ (the packer puts the `include` paths of pack_config.json there).
 COPY service /service
 # (Only these two: a chmod -R of node_modules copies every file up in the overlay and

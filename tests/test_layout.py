@@ -24,8 +24,24 @@ def test_pack_root_links_the_app():
         assert config["include"] == ["app"]
 
 
+def arm64_dockerfile_as_amd64():
+    """The arm64 Dockerfile with its `bundle` stage folded back into the `remotion` stage.
+
+    arm64 builds the Remotion bundle (JavaScript, the same on every arch) in a stage on the
+    platform of the build host, because esbuild crashes under qemu-user (see the comment in
+    arm64/.service/Dockerfile). That stage is the only difference from amd64.
+    """
+    arm = read("arm64", ".service", "Dockerfile")
+    start = arm.index("\n\n# ---- the bundle (webpack output) of src/index.tsx")
+    end = arm.index("RUN npx --no-install remotion bundle", start)
+    arm = (arm[:start] + "\n# The bundle (webpack output) of src/index.tsx: a render reads it and needs no webpack.\n"
+           + arm[end:])
+    return arm.replace("COPY --from=bundle /opt/remotion-bundle", "COPY --from=remotion /opt/remotion-bundle")
+
+
 def test_the_arm64_root_differs_only_in_the_architecture():
-    assert read("arm64", ".service", "Dockerfile") == read("amd64", ".service", "Dockerfile")
+    assert arm64_dockerfile_as_amd64() == read("amd64", ".service", "Dockerfile")
+    assert "FROM --platform=$BUILDPLATFORM node:22-bookworm-slim@" in read("arm64", ".service", "Dockerfile")
     assert read("arm64", ".service", "pack_config.json") == read("amd64", ".service", "pack_config.json")
     amd = read("amd64", ".service", "service.json")
     assert read("arm64", ".service", "service.json") == amd.replace("linux/amd64", "linux/arm64")
