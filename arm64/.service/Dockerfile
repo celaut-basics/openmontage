@@ -37,7 +37,9 @@ RUN npm ci --no-audit > /tmp/npm-ci.log 2>&1 || (tail -40 /tmp/npm-ci.log; exit 
 # chrome-headless-shell into node_modules/.remotion, where `remotion render` looks for it.
 RUN npx --no-install remotion browser ensure > /tmp/browser.log 2>&1 || (tail -20 /tmp/browser.log; exit 1)
 # The bundle (webpack output) of src/index.tsx: a render reads it and needs no webpack.
-RUN npx --no-install remotion bundle src/index.tsx --out-dir=/opt/remotion-bundle > /tmp/bundle.log 2>&1 \
+# arm64 is packed on x86_64 under qemu-user, where esbuild (Go) crashed 3 times in a row
+# (nodo 66721709 pack, 2026-11-21): no async preemption signals, fewer Go threads.
+RUN GODEBUG=asyncpreemptoff=1 GOMAXPROCS=2 npx --no-install remotion bundle src/index.tsx --out-dir=/opt/remotion-bundle > /tmp/bundle.log 2>&1 \
     || (tail -40 /tmp/bundle.log; exit 1)
 
 # ---- the service ----
