@@ -139,7 +139,7 @@ card was made for. A local LLM needs no key.
 **With nodo** (one instance = one conversation):
 
 ```sh
-nodo pack amd64 --local                       # or: nodo import <release>.celaut.bee
+nodo pack amd64 --local                       # or arm64; or: nodo import <release>.celaut.bee
 nodo execute <service id> --name om \
     -e OPENMONTAGE_LLM_BASE_URL http://192.168.200.1:11435/v1 \
     -e OPENMONTAGE_LLM_MODEL qwen2.5:14b-instruct
